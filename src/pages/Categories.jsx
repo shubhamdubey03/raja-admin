@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Search, Edit, Trash2, X, Eye } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
 
 const Categories = () => {
   const [categories, setCategories] = useState([]);
@@ -13,7 +13,8 @@ const Categories = () => {
     description: '',
     image_url: '',
     visible_to_vendor: true,
-    visible_to_retailer: true
+    visible_to_retailer: true,
+    parent_id: ''
   });
 
   const load = async () => {
@@ -38,7 +39,8 @@ const Categories = () => {
       description: '',
       image_url: '',
       visible_to_vendor: true,
-      visible_to_retailer: true
+      visible_to_retailer: true,
+      parent_id: ''
     });
     setShowModal(true);
   };
@@ -50,7 +52,8 @@ const Categories = () => {
       description: c.description || '',
       image_url: c.image_url || '',
       visible_to_vendor: c.visible_to_vendor,
-      visible_to_retailer: c.visible_to_retailer
+      visible_to_retailer: c.visible_to_retailer,
+      parent_id: c.parent_id || ''
     });
     setShowModal(true);
   };
@@ -72,11 +75,15 @@ const Categories = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const payload = {
+      ...form,
+      parent_id: form.parent_id && form.parent_id !== '' ? form.parent_id : null
+    };
     try {
       if (editItem) {
-        await api.patch(`/categories/${editItem.id}`, form);
+        await api.patch(`/categories/${editItem.id}`, payload);
       } else {
-        await api.post('/categories', form);
+        await api.post('/categories', payload);
       }
       setShowModal(false);
       load();
@@ -95,10 +102,37 @@ const Categories = () => {
     }
   };
 
-  const filteredCategories = categories.filter(c => 
+  const buildOrderedCategories = (flatCats) => {
+    const rootCats = flatCats.filter(c => !c.parent_id);
+    const subCats = flatCats.filter(c => c.parent_id);
+    
+    const ordered = [];
+    rootCats.forEach(root => {
+      ordered.push(root);
+      const directSubs = subCats.filter(sub => sub.parent_id === root.id);
+      directSubs.forEach(sub => {
+        ordered.push(sub);
+        const leafSubs = subCats.filter(leaf => leaf.parent_id === sub.id);
+        leafSubs.forEach(leaf => {
+          ordered.push(leaf);
+        });
+      });
+    });
+    
+    flatCats.forEach(c => {
+      if (!ordered.find(o => o.id === c.id)) {
+        ordered.push(c);
+      }
+    });
+    return ordered;
+  };
+
+  const filteredCategories = categories.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     (c.description && c.description.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const orderedCategories = buildOrderedCategories(filteredCategories);
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
 
@@ -119,10 +153,10 @@ const Categories = () => {
           <div className="table-filters" />
           <div className="table-search">
             <Search size={14} color="var(--text-muted)" />
-            <input 
-              placeholder="Search categories..." 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
+            <input
+              placeholder="Search categories..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
             />
           </div>
         </div>
@@ -132,6 +166,7 @@ const Categories = () => {
             <tr>
               <th>Image</th>
               <th>Category Name</th>
+              <th>Type</th>
               <th>Description</th>
               <th>Visibility</th>
               <th>Status</th>
@@ -139,23 +174,23 @@ const Categories = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredCategories.map(c => (
+            {orderedCategories.map(c => (
               <tr key={c.id}>
                 <td>
                   {c.image_url ? (
-                    <img 
-                      src={c.image_url} 
-                      alt={c.name} 
-                      style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover' }} 
+                    <img
+                      src={c.image_url}
+                      alt={c.name}
+                      style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover' }}
                     />
                   ) : (
-                    <div style={{ 
-                      width: 36, 
-                      height: 36, 
-                      borderRadius: 4, 
-                      backgroundColor: 'var(--bg-secondary)', 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                    <div style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 4,
+                      backgroundColor: 'var(--bg-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 10,
                       color: 'var(--text-muted)',
@@ -165,16 +200,48 @@ const Categories = () => {
                     </div>
                   )}
                 </td>
-                <td style={{ fontWeight: 700 }}>{c.name}</td>
+                <td style={{ 
+                  fontWeight: 700,
+                  paddingLeft: c.parent_id ? (c.depth ? c.depth * 24 + 12 : 24) : 12,
+                  color: c.parent_id ? 'var(--text-muted)' : 'var(--text-primary)'
+                }}>
+                  {c.parent_id && <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>└─</span>}
+                  {c.name}
+                </td>
+                <td>
+                  {c.parent_id ? (
+                    <span style={{
+                      fontSize: 10,
+                      backgroundColor: '#E8F5E9',
+                      color: '#1B5E20',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontWeight: 'bold'
+                    }}>
+                      Sub-category
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: 10,
+                      backgroundColor: '#E3F2FD',
+                      color: '#0D47A1',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontWeight: 'bold'
+                    }}>
+                      Parent
+                    </span>
+                  )}
+                </td>
                 <td>{c.description || '—'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {c.visible_to_vendor && (
-                      <span style={{ 
-                        fontSize: 10, 
-                        backgroundColor: '#E3F2FD', 
-                        color: '#0D47A1', 
-                        padding: '2px 6px', 
+                      <span style={{
+                        fontSize: 10,
+                        backgroundColor: '#E3F2FD',
+                        color: '#0D47A1',
+                        padding: '2px 6px',
                         borderRadius: 4,
                         fontWeight: 'bold'
                       }}>
@@ -182,11 +249,11 @@ const Categories = () => {
                       </span>
                     )}
                     {c.visible_to_retailer && (
-                      <span style={{ 
-                        fontSize: 10, 
-                        backgroundColor: '#E8F5E9', 
-                        color: '#1B5E20', 
-                        padding: '2px 6px', 
+                      <span style={{
+                        fontSize: 10,
+                        backgroundColor: '#E8F5E9',
+                        color: '#1B5E20',
+                        padding: '2px 6px',
                         borderRadius: 4,
                         fontWeight: 'bold'
                       }}>
@@ -212,9 +279,9 @@ const Categories = () => {
                 </td>
               </tr>
             ))}
-            {filteredCategories.length === 0 && (
+            {orderedCategories.length === 0 && (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
                   No categories found
                 </td>
               </tr>
@@ -235,12 +302,28 @@ const Categories = () => {
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
                 <div className="form-group">
+                  <label className="form-label">Parent Category</label>
+                  <select
+                    className="form-input"
+                    value={form.parent_id}
+                    onChange={e => setForm({ ...form, parent_id: e.target.value })}
+                  >
+                    <option value="">None (Top-level category)</option>
+                    {categories.filter(c => !c.parent_id && (!editItem || c.id !== editItem.id)).map(parent => (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Category Name</label>
-                  <input 
-                    className="form-input" 
-                    value={form.name} 
-                    onChange={e => setForm({ ...form, name: e.target.value })} 
-                    required 
+                  <input
+                    className="form-input"
+                    value={form.name}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                    required
                   />
                 </div>
 
@@ -249,13 +332,13 @@ const Categories = () => {
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
                     {form.image_url ? (
                       <div style={{ position: 'relative' }}>
-                        <img 
-                          src={form.image_url} 
-                          alt="Preview" 
-                          style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} 
+                        <img
+                          src={form.image_url}
+                          alt="Preview"
+                          style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }}
                         />
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setForm(prev => ({ ...prev, image_url: '' }))}
                           style={{
                             position: 'absolute',
@@ -279,13 +362,13 @@ const Categories = () => {
                         </button>
                       </div>
                     ) : (
-                      <div style={{ 
-                        width: 64, 
-                        height: 64, 
-                        borderRadius: 8, 
-                        backgroundColor: 'var(--bg-secondary)', 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                      <div style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 8,
+                        backgroundColor: 'var(--bg-secondary)',
+                        display: 'flex',
+                        alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: 11,
                         color: 'var(--text-muted)',
@@ -296,12 +379,12 @@ const Categories = () => {
                       </div>
                     )}
                     <div style={{ flex: 1 }}>
-                      <label 
-                        className="btn btn-secondary" 
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: 6, 
+                      <label
+                        className="btn btn-secondary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
                           cursor: 'pointer',
                           padding: '6px 12px',
                           fontSize: 13,
@@ -309,11 +392,11 @@ const Categories = () => {
                         }}
                       >
                         Upload Image
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleImageUpload} 
-                          style={{ display: 'none' }} 
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          style={{ display: 'none' }}
                         />
                       </label>
                       <p style={{ margin: '4px 0 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
@@ -325,31 +408,31 @@ const Categories = () => {
 
                 <div className="form-group">
                   <label className="form-label">Description</label>
-                  <textarea 
-                    className="form-textarea" 
-                    value={form.description} 
-                    onChange={e => setForm({ ...form, description: e.target.value })} 
+                  <textarea
+                    className="form-textarea"
+                    value={form.description}
+                    onChange={e => setForm({ ...form, description: e.target.value })}
                   />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
                   <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="visible_to_vendor"
-                      checked={form.visible_to_vendor} 
-                      onChange={e => setForm({ ...form, visible_to_vendor: e.target.checked })} 
+                      checked={form.visible_to_vendor}
+                      onChange={e => setForm({ ...form, visible_to_vendor: e.target.checked })}
                     />
                     <label htmlFor="visible_to_vendor" style={{ fontSize: 13, fontWeight: '600', cursor: 'pointer' }}>
                       Visible to Vendors
                     </label>
                   </div>
                   <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="visible_to_retailer"
-                      checked={form.visible_to_retailer} 
-                      onChange={e => setForm({ ...form, visible_to_retailer: e.target.checked })} 
+                      checked={form.visible_to_retailer}
+                      onChange={e => setForm({ ...form, visible_to_retailer: e.target.checked })}
                     />
                     <label htmlFor="visible_to_retailer" style={{ fontSize: 13, fontWeight: '600', cursor: 'pointer' }}>
                       Visible to Retailers

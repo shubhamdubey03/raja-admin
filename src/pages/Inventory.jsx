@@ -7,7 +7,7 @@ const Inventory = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  
+
   // Stock adjustment states
   const [adjusting, setAdjusting] = useState(null);
   const [adjQty, setAdjQty] = useState('');
@@ -24,6 +24,7 @@ const Inventory = () => {
     stock_qty: '0',
     low_stock_threshold: '10',
     category_id: '',
+    sub_category_id: '',
     unit: 'piece'
   });
 
@@ -68,7 +69,8 @@ const Inventory = () => {
       gst_rate: '18',
       stock_qty: '0',
       low_stock_threshold: '10',
-      category_id: categories[0]?.id || '',
+      category_id: String(categories.filter(c => !c.parent_id)[0]?.id || ''),
+      sub_category_id: '',
       unit: 'piece'
     });
     setShowModal(true);
@@ -81,7 +83,8 @@ const Inventory = () => {
       base_price: Number(form.base_price),
       gst_rate: Number(form.gst_rate),
       stock_qty: Number(form.stock_qty),
-      low_stock_threshold: Number(form.low_stock_threshold)
+      low_stock_threshold: Number(form.low_stock_threshold),
+      sub_category_id: form.sub_category_id ? form.sub_category_id : null
     };
     try {
       await api.post('/products', payload);
@@ -125,6 +128,9 @@ const Inventory = () => {
   };
 
   const fmt = (paise) => `INR ${(paise / 100).toFixed(2)}`;
+
+  const rootCategories = categories.filter(c => !c.parent_id);
+  const subCategories = categories.filter(c => String(c.parent_id) === String(form.category_id));
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
 
@@ -264,12 +270,41 @@ const Inventory = () => {
                   <label className="form-label">SKU</label>
                   <input className="form-input" value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} required />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Category</label>
-                  <select className="form-select" value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })} required>
-                    <option value="">Select category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="form-group">
+                    <label className="form-label">Category</label>
+                    <select
+                      className="form-select"
+                      value={form.category_id}
+                      onChange={e => setForm({ ...form, category_id: e.target.value, sub_category_id: '' })}
+                      required
+                    >
+                      <option value="">Select category</option>
+                      {rootCategories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Sub-Category</label>
+                    <select
+                      className="form-select"
+                      value={form.sub_category_id}
+                      onChange={e => setForm({ ...form, sub_category_id: e.target.value })}
+                      disabled={!form.category_id || subCategories.length === 0}
+                    >
+                      <option value="">
+                        {!form.category_id
+                          ? 'Select Category first'
+                          : subCategories.length === 0
+                            ? 'No sub-categories'
+                            : 'Select sub-category'}
+                      </option>
+                      {subCategories.map(sub => (
+                        <option key={sub.id} value={sub.id}>{sub.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div className="form-group">

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Search } from 'lucide-react';
 
-const statusOptions = ['pending', 'confirmed', 'dispatched', 'delivered', 'cancelled'];
+const statusOptions = ['pending', 'confirmed', 'dispatched', 'delivered', 'cancelled', 'returned'];
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -54,7 +54,26 @@ const Orders = () => {
           <tbody>
             {orders.map(o => (
               <tr key={o.id}>
-                <td style={{ fontWeight: 700 }}>{o.order_number}</td>
+                <td style={{ fontWeight: 700 }}>
+                  {o.order_number}
+                  {o.return_image_url && (
+                    <div style={{ marginTop: 4 }}>
+                      <a
+                        href={o.return_image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: '0.72rem', color: '#BA1A1A', textDecoration: 'underline', fontWeight: 'bold' }}
+                      >
+                        View Verification Image
+                      </a>
+                      {o.return_reason && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          Reason: {o.return_reason}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td><span className={`badge ${o.status}`}>{o.status}</span></td>
                 <td>{o.items?.length || 0}</td>
                 <td>{fmt(o.subtotal)}</td>
